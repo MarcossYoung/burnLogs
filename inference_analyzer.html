@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inference Analyzer</title>
+<style>
+:root {
+  --bg: #0d0f0e;
+  --bg2: #131614;
+  --bg3: #1a1d1b;
+  --border: #2a2e2c;
+  --border2: #363b38;
+  --text: #e8ede9;
+  --text2: #8a9490;
+  --text3: #566059;
+  --accent: #4ade80;
+  --accent-dim: #1a3d25;
+  --red: #f87171;
+  --sans: 'Segoe UI', system-ui, sans-serif;
+  --mono: 'Cascadia Code', Consolas, 'Courier New', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; min-height: 100vh; }
+
+.header { border-bottom: 1px solid var(--border); padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; background: var(--bg2); }
+.logo { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 0.1em; }
+.logo em { color: var(--text3); font-style: normal; }
+.header-meta { font-family: var(--mono); font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 16px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); display: inline-block; margin-right: 6px; }
+.dot.live { background: var(--accent); box-shadow: 0 0 6px var(--accent); animation: blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.main { padding: 28px; max-width: 1100px; margin: 0 auto; }
+
+.drop-zone { border: 1px dashed var(--border2); border-radius: 6px; padding: 48px 24px; text-align: center; cursor: pointer; background: var(--bg2); margin-bottom: 20px; transition: border-color 0.2s, background 0.2s; }
+.drop-zone:hover { border-color: var(--accent); background: rgba(74,222,128,0.03); }
+.drop-icon { font-family: var(--mono); font-size: 24px; color: var(--text3); display: block; margin-bottom: 10px; }
+.drop-title { font-size: 15px; font-weight: 500; margin-bottom: 5px; }
+.drop-sub { font-family: var(--mono); font-size: 11px; color: var(--text3); }
+
+.lbl { font-family: var(--mono); font-size: 10px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text3); display: block; margin-bottom: 7px; }
+
+textarea { width: 100%; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-family: var(--mono); font-size: 11px; padding: 10px 12px; resize: vertical; min-height: 72px; outline: none; line-height: 1.6; }
+textarea:focus { border-color: var(--border2); }
+
+.btn-row { display: flex; gap: 8px; margin-top: 8px; }
+button { font-family: var(--mono); font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; padding: 7px 16px; border-radius: 3px; border: 1px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: all 0.15s; }
+button:hover { border-color: var(--accent); color: var(--accent); }
+button.primary { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+button.primary:hover { background: rgba(74,222,128,0.12); }
+button.ghost { border-color: var(--border); color: var(--text3); }
+button.ghost:hover { border-color: var(--border2); color: var(--text2); }
+
+.metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 24px; }
+.mcard { background: var(--bg2); border: 1px solid var(--border); border-top: 1px solid var(--accent); border-radius: 4px; padding: 16px 18px; }
+.ml { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; }
+.mv { font-family: var(--mono); font-size: 24px; color: var(--text); line-height: 1.1; margin-bottom: 3px; }
+.ms { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+
+.tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.tab { font-family: var(--mono); font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; padding: 9px 18px; border: none; border-bottom: 2px solid transparent; border-radius: 0; color: var(--text3); background: transparent; cursor: pointer; margin-bottom: -1px; transition: all 0.15s; }
+.tab:hover { color: var(--text2); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.tbl-wrap { border: 1px solid var(--border); border-radius: 4px; overflow: hidden; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+thead tr { background: var(--bg3); }
+th { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text2); font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.012); }
+.mono { font-family: var(--mono); font-size: 11px; }
+
+.bar-row { display: flex; align-items: center; gap: 7px; }
+.bar-bg { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; min-width: 50px; }
+.bar-fill { height: 100%; border-radius: 2px; }
+.bar-pct { font-family: var(--mono); font-size: 10px; color: var(--text3); min-width: 26px; }
+
+.badge { display: inline-block; padding: 2px 7px; border-radius: 2px; font-family: var(--mono); font-size: 10px; border: 1px solid; }
+.ct0 { color:#4ade80; border-color:#1a3d25; background:#0d1f12; }
+.ct1 { color:#60a5fa; border-color:#1e3a5f; background:#0f1e30; }
+.ct2 { color:#fbbf24; border-color:#4a3510; background:#251a08; }
+.ct3 { color:#f87171; border-color:#4a1e1e; background:#250f0f; }
+.ct4 { color:#2dd4bf; border-color:#0f3d38; background:#081e1b; }
+.ct5 { color:#a78bfa; border-color:#3d2f6b; background:#1e1530; }
+.ct6 { color:#fb923c; border-color:#4a2810; background:#250f05; }
+.src-r { color:#a78bfa; border-color:#3d2f6b; background:#1e1530; }
+.src-c { color:#60a5fa; border-color:#1e3a5f; background:#0f1e30; }
+.src-u { color:var(--text3); border-color:var(--border); background:transparent; }
+
+.model-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); gap: 10px; }
+.model-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 16px 18px; }
+.model-name { font-family: var(--mono); font-size: 12px; color: var(--accent); margin-bottom: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mstat { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 12px; }
+.msl { color: var(--text3); }
+.msv { font-family: var(--mono); color: var(--text2); }
+
+.tl-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 20px; }
+.tl-chart { height: 140px; display: flex; align-items: flex-end; gap: 3px; margin-bottom: 6px; }
+.tl-bar { flex: 1; border-radius: 2px 2px 0 0; min-width: 3px; opacity: 0.75; }
+.tl-bar:hover { opacity: 1; }
+.tl-labels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--text3); }
+
+.reset-row { margin-top: 20px; display: flex; gap: 10px; align-items: center; }
+.rcount { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+.empty { text-align: center; padding: 40px; color: var(--text3); font-family: var(--mono); font-size: 12px; }
+
+@media(max-width:680px) { .metrics { grid-template-columns: repeat(2,1fr); } .main { padding: 14px; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo"><em>// </em>INFERENCE<em>.</em>ANALYZER</div>
+  <div class="header-meta">
+    <span><span class="dot" id="dot"></span><span id="status">no data loaded</span></span>
+    <span id="hdate"></span>
+  </div>
+</div>
+
+<div class="main">
+
+  <div id="upload-section">
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('finput').click()">
+      <span class="drop-icon">[ &uarr; ]</span>
+      <div class="drop-title">Drop your .jsonl log file here</div>
+      <div class="drop-sub">inference_log.jsonl &nbsp; / &nbsp; replicate_inference_log.jsonl &nbsp; / &nbsp; both at once</div>
+    </div>
+    <input type="file" id="finput" accept=".jsonl,.json" multiple style="display:none">
+    <div id="connect-row" style="margin:12px 0;display:flex;gap:8px;align-items:center">
+      <button id="connect-btn" class="primary" onclick="connectLogs()">Connect to Claude Logs</button>
+      <button id="reuse-btn" class="primary" onclick="reuseLogs()" style="display:none">Re-use last folder</button>
+      <span id="connect-tip" style="font-family:var(--mono);font-size:10px;color:var(--text3)"></span>
+    </div>
+    <div style="margin-top:4px">
+      <span class="lbl">Or paste JSONL lines directly</span>
+      <textarea id="paste" placeholder='{"timestamp":"2024-01-01T10:00:00Z","call_type":"npc_dialogue","model":"claude-sonnet-4","input_tokens":320,"output_tokens":180,"latency_ms":1240,"cost_usd":0.0037}'></textarea>
+      <div class="btn-row">
+        <button class="primary" onclick="parsePaste()">Analyze</button>
+        <button onclick="loadDemo()">Load demo data</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="results" style="display:none">
+    <div class="metrics" id="metrics"></div>
+    <div class="tabs">
+      <button class="tab active" onclick="go('breakdown')">By call type</button>
+      <button class="tab" onclick="go('models')">By model</button>
+      <button class="tab" onclick="go('heatmap')">Model vs type</button>
+      <button class="tab" onclick="go('timeline')">Timeline</button>
+      <button class="tab" onclick="go('raw')">Raw log</button>
+    </div>
+    <div id="pane-breakdown"></div>
+    <div id="pane-models"   style="display:none"></div>
+    <div id="pane-heatmap"  style="display:none"></div>
+    <div id="pane-timeline" style="display:none"></div>
+    <div id="pane-raw"      style="display:none"></div>
+    <div class="reset-row">
+      <button class="ghost" onclick="reset()">Clear &amp; load new</button>
+      <span class="rcount" id="rcount"></span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var data = [];
+var ctMap = {};
+var TABS = ['breakdown','models','heatmap','timeline','raw'];
+var COLORS = ['#4ade80','#60a5fa','#fbbf24','#f87171','#2dd4bf','#a78bfa','#fb923c'];
+var CTCLS  = ['ct0','ct1','ct2','ct3','ct4','ct5','ct6'];
+
+var PRICING = {
+  'claude-opus-4':   { input: 15,   output: 75, cache_read: 1.50, cache_write: 18.75 },
+  'claude-sonnet-4': { input: 3,    output: 15, cache_read: 0.30, cache_write: 3.75  },
+  'claude-haiku-4':  { input: 0.80, output: 4,  cache_read: 0.08, cache_write: 1.00  }
+};
+
+function calcCost(model, usage) {
+  var pk = '';
+  var ks = Object.keys(PRICING);
+  for (var i = 0; i < ks.length; i++) { if (model && model.startsWith(ks[i])) { pk = ks[i]; break; } }
+  if (!pk) return 0;
+  var p = PRICING[pk];
+  return (
+    ((usage.input_tokens                   || 0) * p.input +
+     (usage.output_tokens                  || 0) * p.output +
+     (usage.cache_read_input_tokens        || 0) * p.cache_read +
+     (usage.cache_creation_input_tokens    || 0) * p.cache_write) / 1e6
+  );
+}
+
+document.getElementById('hdate').textContent = new Date().toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+
+document.getElementById('finput').addEventListener('change', function(){
+  readFiles(Array.from(this.files));
+});
+
+var dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover',  function(e){ e.preventDefault(); dz.style.borderColor='var(--accent)'; });
+dz.addEventListener('dragleave', function(){ dz.style.borderColor=''; });
+dz.addEventListener('drop', function(e){
+  e.preventDefault();
+  dz.style.borderColor='';
+  readFiles(Array.from(e.dataTransfer.files));
+});
+
+function readFiles(files) {
+  var promises = files.map(function(f){
+    return new Promise(function(res){
+      var r = new FileReader();
+      r.onload = function(ev){ res(ev.target.result); };
+      r.readAsText(f);
+    });
+  });
+  Promise.all(promises).then(function(texts){
+    var combined = [];
+    for (var i = 0; i < texts.length; i++) {
+      var fmt = detectFormat(texts[i]);
+      var records = fmt === 'claude-code' ? parseClaudeCodeJSONL(texts[i]) : parseLines(texts[i]);
+      for (var j = 0; j < records.length; j++) combined.push(records[j]);
+    }
+    if (combined.length) processData(combined);
+  });
+}
+
+function parseLines(txt) {
+  var out = [];
+  var lines = txt.trim().split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    var l = lines[i].trim();
+    if (!l) continue;
+    try { out.push(JSON.parse(l)); } catch(e) {}
+  }
+  return out;
+}
+
+function detectFormat(text) {
+  var lines = text.trim().split('\n');
+  var count = 0;
+  for (var i = 0; i < lines.length && count < 10; i++) {
+    var l = lines[i].trim();
+    if (!l) continue;
+    try {
+      var obj = JSON.parse(l);
+      count++;
+      if (obj.sessionId !== undefined && obj.type !== undefined) return 'claude-code';
+    } catch(e) {}
+  }
+  return 'vr';
+}
+
+function parseClaudeCodeJSONL(text) {
+  var lines = text.trim().split('\n');
+  var events = [];
+  for (var i = 0; i < lines.length; i++) {
+    var l = lines[i].trim();
+    if (!l) continue;
+    try { events.push(JSON.parse(l)); } catch(e) {}
+  }
+
+  // Pass 1: collect tool_result error map from user events
+  var toolErrors = {};
+  for (var i = 0; i < events.length; i++) {
+    var ev = events[i];
+    if (ev.type !== 'user') continue;
+    var content = ev.message && ev.message.content;
+    if (!Array.isArray(content)) continue;
+    for (var j = 0; j < content.length; j++) {
+      var block = content[j];
+      if (block.type === 'tool_result' && block.is_error) toolErrors[block.tool_use_id] = true;
+    }
+  }
+
+  // Pass 2: emit one record per assistant event that has usage
+  var out = [];
+  for (var i = 0; i < events.length; i++) {
+    var ev = events[i];
+    if (ev.type === 'compact_boundary') continue;
+    if (ev.type !== 'assistant') continue;
+    var msg = ev.message;
+    if (!msg || !msg.usage) continue;
+
+    var usage   = msg.usage;
+    var content = Array.isArray(msg.content) ? msg.content : [];
+    var model   = msg.model || 'unknown';
+    var ts      = ev.timestamp || '';
+
+    // Latency: scan backward to nearest user event with a timestamp
+    var latency_ms = null;
+    for (var j = i - 1; j >= 0; j--) {
+      if (events[j].type === 'user' && events[j].timestamp) {
+        var t1 = new Date(events[j].timestamp).getTime();
+        var t2 = ts ? new Date(ts).getTime() : NaN;
+        if (!isNaN(t1) && !isNaN(t2)) latency_ms = t2 - t1;
+        break;
+      }
+    }
+
+    // call_type derived from content blocks
+    var call_type;
+    if (ev.attributionSkill) {
+      call_type = 'skill:' + ev.attributionSkill;
+    } else {
+      var toolNames  = [];
+      var hasThinking = false;
+      for (var j = 0; j < content.length; j++) {
+        var blk = content[j];
+        if (blk.type === 'tool_use') toolNames.push(blk.name || 'unknown');
+        else if (blk.type === 'thinking' && blk.thinking) hasThinking = true;
+      }
+      if      (toolNames.length === 1) call_type = 'tool:' + toolNames[0];
+      else if (toolNames.length  >  1) call_type = 'tool:multi';
+      else if (hasThinking)            call_type = 'thinking';
+      else                             call_type = 'text';
+    }
+
+    // Status: failed if any tool_use id had a tool_result error
+    var status = 'succeeded';
+    for (var j = 0; j < content.length; j++) {
+      if (content[j].type === 'tool_use' && toolErrors[content[j].id]) { status = 'failed'; break; }
+    }
+
+    out.push({
+      timestamp:          ts,
+      call_type:          call_type,
+      model:              model,
+      source:             'claude',
+      input_tokens:       usage.input_tokens || 0,
+      output_tokens:      usage.output_tokens || 0,
+      latency_ms:         latency_ms,
+      cost_usd:           calcCost(model, usage),
+      status:             status,
+      cache_read_tokens:  usage.cache_read_input_tokens     || 0,
+      cache_write_tokens: usage.cache_creation_input_tokens || 0
+    });
+  }
+
+  return out;
+}
+
+function parsePaste() {
+  var txt = document.getElementById('paste').value;
+  if (!txt.trim()) return;
+  var fmt = detectFormat(txt);
+  var d = fmt === 'claude-code' ? parseClaudeCodeJSONL(txt) : parseLines(txt);
+  if (d.length) processData(d);
+  else alert('No valid JSONL lines found. Check the format.');
+}
+
+function loadDemo() {
+  var types = ['npc_dialogue','scene_description','quest_generation','image_gen_flux','combat_narration','lore_lookup'];
+  var d = [];
+  var base = new Date('2024-03-01T09:00:00Z').getTime();
+  for (var i = 0; i < 100; i++) {
+    var t = types[Math.floor(Math.random() * types.length)];
+    var isImg = (t === 'image_gen_flux');
+    var model = isImg ? 'flux-schnell' : (Math.random() > 0.35 ? 'claude-sonnet-4' : 'claude-haiku-4');
+    var inp = Math.floor(Math.random() * 450) + 80;
+    var out = Math.floor(Math.random() * 300) + 40;
+    var lat = Math.floor(Math.random() * 2200) + 300;
+    var cost = isImg
+      ? parseFloat((0.002 + Math.random() * 0.002).toFixed(5))
+      : parseFloat(((inp * 3 + out * 15) / 1e9).toFixed(6));
+    d.push({
+      timestamp:    new Date(base + i * 9 * 60000).toISOString(),
+      call_type:    t,
+      model:        model,
+      source:       isImg ? 'replicate' : 'claude',
+      input_tokens: isImg ? null : inp,
+      output_tokens:isImg ? null : out,
+      latency_ms:   lat,
+      cost_usd:     cost
+    });
+  }
+  processData(d);
+}
+
+function processData(d) {
+  data = d;
+  var seen = {};
+  var types = [];
+  for (var i = 0; i < d.length; i++) {
+    var t = d[i].call_type || 'unknown';
+    if (!seen[t]) { seen[t] = true; types.push(t); }
+  }
+  ctMap = {};
+  for (var i = 0; i < types.length; i++) ctMap[types[i]] = i % CTCLS.length;
+
+  document.getElementById('dot').className = 'dot live';
+  document.getElementById('status').textContent = d.length + ' records loaded';
+  document.getElementById('rcount').textContent = d.length + ' entries';
+  document.getElementById('upload-section').style.display = 'none';
+  document.getElementById('results').style.display = '';
+
+  renderMetrics();
+  renderBreakdown();
+  renderModels();
+  renderHeatmap();
+  renderTimeline();
+  renderRaw();
+}
+
+function aggBy(field) {
+  var map = {};
+  for (var i = 0; i < data.length; i++) {
+    var k = data[i][field] || 'unknown';
+    if (!map[k]) map[k] = { count:0, cost:0, latency:[], input:0, output:0, source: data[i].source || 'unknown' };
+    map[k].count++;
+    map[k].cost   += data[i].cost_usd     || 0;
+    map[k].input  += data[i].input_tokens  || 0;
+    map[k].output += data[i].output_tokens || 0;
+    if (data[i].latency_ms) map[k].latency.push(data[i].latency_ms);
+  }
+  return map;
+}
+
+function avg(arr) {
+  if (!arr.length) return 0;
+  return Math.round(arr.reduce(function(a,b){return a+b;}, 0) / arr.length);
+}
+
+function countUniq(field) {
+  var s = {};
+  for (var i = 0; i < data.length; i++) s[data[i][field] || 'unknown'] = 1;
+  return Object.keys(s).length;
+}
+
+function renderMetrics() {
+  var tc=0, tl=0, tlc=0, tt=0;
+  for (var i=0; i<data.length; i++) {
+    tc += data[i].cost_usd || 0;
+    var lat = data[i].latency_ms;
+    if (lat && lat > 0) { tl += Math.min(lat, 300000); tlc++; }
+    tt += (data[i].input_tokens||0) + (data[i].output_tokens||0);
+  }
+  var cards = [
+    { l:'Total calls',  v: data.length.toLocaleString(),          s: countUniq('call_type')+' call types' },
+    { l:'Total cost',   v: '$'+tc.toFixed(4),                     s: 'avg $'+(tc/data.length).toFixed(5)+'/call' },
+    { l:'Avg latency',  v: tlc ? Math.round(tl/tlc)+'ms' : '—',  s: 'across all calls' },
+    { l:'Total tokens', v: tt>0 ? tt.toLocaleString() : 'n/a',    s: countUniq('model')+' models used' }
+  ];
+  var hasCacheData = data.some(function(r){ return (r.cache_read_tokens||0) > 0; });
+  if (hasCacheData) {
+    var totalIn=0, totalCR=0, savingsUsd=0;
+    for (var i=0; i<data.length; i++) {
+      totalIn += data[i].input_tokens || 0;
+      totalCR += data[i].cache_read_tokens || 0;
+      var cr = data[i].cache_read_tokens || 0;
+      if (cr) {
+        var m = data[i].model || '';
+        var pk = ''; var ks = Object.keys(PRICING);
+        for (var k=0; k<ks.length; k++) { if (m.startsWith(ks[k])) { pk=ks[k]; break; } }
+        if (pk) savingsUsd += cr * (PRICING[pk].input - PRICING[pk].cache_read) / 1e6;
+      }
+    }
+    var hitRate = (totalIn + totalCR) > 0 ? Math.round(totalCR / (totalIn + totalCR) * 100) : 0;
+    cards.push({ l:'Cache hit rate', v: hitRate+'%', s: 'saved $'+savingsUsd.toFixed(4) });
+  }
+  var el = document.getElementById('metrics');
+  el.style.gridTemplateColumns = 'repeat('+cards.length+',1fr)';
+  el.innerHTML = cards.map(function(m){
+    return '<div class="mcard"><div class="ml">'+m.l+'</div><div class="mv">'+m.v+'</div><div class="ms">'+m.s+'</div></div>';
+  }).join('');
+}
+
+function renderBreakdown() {
+  var map = aggBy('call_type');
+  var rows = Object.entries(map).sort(function(a,b){return b[1].cost-a[1].cost;});
+  var total = rows.reduce(function(s,r){return s+r[1].cost;},0);
+  document.getElementById('pane-breakdown').innerHTML =
+    '<div class="tbl-wrap"><table>'+
+    '<thead><tr><th>Call type</th><th>Calls</th><th>Total cost</th><th>Avg latency</th><th>Avg tokens in/out</th><th>Cost share</th></tr></thead><tbody>'+
+    rows.map(function(e){
+      var type=e[0], v=e[1];
+      var ci = ctMap[type] !== undefined ? ctMap[type] : 0;
+      var pct = total>0 ? Math.round(v.cost/total*100) : 0;
+      var al = avg(v.latency);
+      return '<tr>'+
+        '<td><span class="badge '+CTCLS[ci]+'">'+type+'</span></td>'+
+        '<td class="mono">'+v.count+'</td>'+
+        '<td class="mono">$'+v.cost.toFixed(5)+'</td>'+
+        '<td class="mono">'+(al?al+'ms':'—')+'</td>'+
+        '<td class="mono">'+(v.input?Math.round(v.input/v.count)+' / '+Math.round(v.output/v.count):'—')+'</td>'+
+        '<td><div class="bar-row"><div class="bar-bg"><div class="bar-fill" style="width:'+pct+'%;background:'+COLORS[ci]+'"></div></div><span class="bar-pct">'+pct+'%</span></div></td>'+
+        '</tr>';
+    }).join('')+
+    '</tbody></table></div>';
+}
+
+function renderModels() {
+  var map = aggBy('model');
+  var rows = Object.entries(map).sort(function(a,b){return b[1].cost-a[1].cost;});
+  document.getElementById('pane-models').innerHTML =
+    '<div class="model-grid">'+
+    rows.map(function(e){
+      var model=e[0], v=e[1];
+      var al = avg(v.latency);
+      var sc = v.source==='replicate'?'src-r':v.source==='claude'?'src-c':'src-u';
+      return '<div class="model-card">'+
+        '<div class="model-name">'+model+'</div>'+
+        '<div class="mstat"><span class="msl">Source</span><span class="badge '+sc+'">'+v.source+'</span></div>'+
+        '<div class="mstat"><span class="msl">Calls</span><span class="msv">'+v.count+'</span></div>'+
+        '<div class="mstat"><span class="msl">Total cost</span><span class="msv">$'+v.cost.toFixed(5)+'</span></div>'+
+        '<div class="mstat"><span class="msl">Cost / call</span><span class="msv">$'+(v.cost/v.count).toFixed(5)+'</span></div>'+
+        '<div class="mstat"><span class="msl">Avg latency</span><span class="msv">'+(al?al+'ms':'—')+'</span></div>'+
+        '</div>';
+    }).join('')+
+    '</div>';
+}
+
+function renderTimeline() {
+  var buckets = {};
+  for (var i=0; i<data.length; i++) {
+    var ts = (data[i].timestamp||'').slice(0,13);
+    if (!ts) continue;
+    buckets[ts] = (buckets[ts]||0) + (data[i].cost_usd||0);
+  }
+  var entries = Object.entries(buckets).sort(function(a,b){return a[0]<b[0]?-1:1;});
+  if (!entries.length) { document.getElementById('pane-timeline').innerHTML='<div class="empty">no timeline data</div>'; return; }
+  var maxV = Math.max.apply(null, entries.map(function(e){return e[1];}));
+  document.getElementById('pane-timeline').innerHTML =
+    '<div class="tl-wrap">'+
+    '<span class="lbl" style="margin-bottom:14px">Cost per hour</span>'+
+    '<div class="tl-chart">'+
+    entries.map(function(e,i){
+      var h = maxV>0 ? Math.max(4,Math.round((e[1]/maxV)*130)) : 4;
+      return '<div class="tl-bar" style="height:'+h+'px;background:'+COLORS[i%COLORS.length]+'" title="'+e[0]+': $'+e[1].toFixed(5)+'"></div>';
+    }).join('')+
+    '</div>'+
+    '<div class="tl-labels"><span>'+(entries[0][0].slice(5)||'')+'</span><span>'+(entries[entries.length-1][0].slice(5)||'')+'</span></div>'+
+    '</div>';
+}
+
+function renderRaw() {
+  var recent = data.slice().reverse().slice(0,30);
+  document.getElementById('pane-raw').innerHTML =
+    '<div class="tbl-wrap"><table>'+
+    '<thead><tr><th>Time</th><th>Call type</th><th>Model</th><th>Source</th><th>Latency</th><th>Tokens in/out</th><th>Cost</th><th>Status</th></tr></thead><tbody>'+
+    recent.map(function(r){
+      var ci = ctMap[r.call_type||'unknown'] !== undefined ? ctMap[r.call_type||'unknown'] : 0;
+      var sc = (r.source||'')==='replicate'?'src-r':(r.source||'')==='claude'?'src-c':'src-u';
+      var st = r.status||'—';
+      var stc = st==='succeeded'?'color:var(--accent)':st==='failed'?'color:var(--red)':'color:var(--text3)';
+      return '<tr>'+
+        '<td class="mono" style="color:var(--text3)">'+(r.timestamp||'').slice(11,19)+'</td>'+
+        '<td><span class="badge '+CTCLS[ci]+'">'+(r.call_type||'unknown')+'</span></td>'+
+        '<td class="mono" style="font-size:10px">'+(r.model||'—')+'</td>'+
+        '<td><span class="badge '+sc+'">'+(r.source||'—')+'</span></td>'+
+        '<td class="mono">'+(r.latency_ms?Math.round(r.latency_ms)+'ms':'—')+'</td>'+
+        '<td class="mono">'+(r.input_tokens!=null?r.input_tokens+' / '+r.output_tokens:'—')+'</td>'+
+        '<td class="mono">$'+(r.cost_usd||0).toFixed(5)+'</td>'+
+        '<td class="mono" style="'+stc+'">'+st+'</td>'+
+        '</tr>';
+    }).join('')+
+    '</tbody></table></div>';
+}
+
+function renderHeatmap() {
+  var models = [];
+  var types  = [];
+  var mSeen  = {};
+  var tSeen  = {};
+  for (var i=0; i<data.length; i++) {
+    var m = data[i].model     || 'unknown';
+    var t = data[i].call_type || 'unknown';
+    if (!mSeen[m]) { mSeen[m]=true; models.push(m); }
+    if (!tSeen[t]) { tSeen[t]=true; types.push(t);  }
+  }
+
+  // Build cost and latency grids: grid[type][model]
+  var costGrid = {};
+  var latGrid  = {};
+  var cntGrid  = {};
+  for (var i=0; i<types.length; i++) {
+    costGrid[types[i]] = {};
+    latGrid[types[i]]  = {};
+    cntGrid[types[i]]  = {};
+    for (var j=0; j<models.length; j++) {
+      costGrid[types[i]][models[j]] = 0;
+      latGrid[types[i]][models[j]]  = [];
+      cntGrid[types[i]][models[j]]  = 0;
+    }
+  }
+  for (var i=0; i<data.length; i++) {
+    var m = data[i].model     || 'unknown';
+    var t = data[i].call_type || 'unknown';
+    costGrid[t][m] += data[i].cost_usd   || 0;
+    cntGrid[t][m]  += 1;
+    if (data[i].latency_ms) latGrid[t][m].push(data[i].latency_ms);
+  }
+
+  // Find max values for color scaling
+  var maxCost = 0;
+  var maxLat  = 0;
+  for (var i=0; i<types.length; i++) {
+    for (var j=0; j<models.length; j++) {
+      if (costGrid[types[i]][models[j]] > maxCost) maxCost = costGrid[types[i]][models[j]];
+      var la = latGrid[types[i]][models[j]];
+      var al = la.length ? Math.round(la.reduce(function(a,b){return a+b;},0)/la.length) : 0;
+      if (al > maxLat) maxLat = al;
+    }
+  }
+
+  function heatColor(val, max, mode) {
+    if (!max || !val) return 'background:#1a1d1b;color:var(--text3)';
+    var intensity = val / max;
+    if (mode === 'cost') {
+      // green low -> amber mid -> red high
+      var r = Math.round(intensity < 0.5 ? intensity*2*180 : 180 + (intensity-0.5)*2*75);
+      var g = Math.round(intensity < 0.5 ? 180 - intensity*2*60 : 120 - (intensity-0.5)*2*120);
+      var b = 30;
+      return 'background:rgba('+r+','+g+','+b+','+(0.15+intensity*0.55)+');color:'+(intensity>0.6?'#f87171':intensity>0.3?'#fbbf24':'#4ade80');
+    } else {
+      var r2 = Math.round(intensity*100);
+      var b2 = Math.round(180 - intensity*130);
+      return 'background:rgba('+r2+',120,'+b2+','+(0.15+intensity*0.55)+');color:'+(intensity>0.6?'#f87171':intensity>0.3?'#60a5fa':'#2dd4bf');
+    }
+  }
+
+  // Toggle state
+  var mode = 'cost';
+
+  function buildTable(m) {
+    var colHeaders = models.map(function(model){
+      return '<th style="font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+model+'">'+model.split('/').pop()+'</th>';
+    }).join('');
+
+    var rows = types.map(function(type){
+      var ci = ctMap[type] !== undefined ? ctMap[type] : 0;
+      var cells = models.map(function(model){
+        var cnt = cntGrid[type][model];
+        if (!cnt) return '<td style="background:var(--bg3);color:var(--text3);text-align:center;font-family:var(--mono);font-size:11px">—</td>';
+        var val, display;
+        if (m === 'cost') {
+          val = costGrid[type][model];
+          display = '$'+val.toFixed(5);
+        } else {
+          var la = latGrid[type][model];
+          val = la.length ? Math.round(la.reduce(function(a,b){return a+b;},0)/la.length) : 0;
+          display = val ? val+'ms' : '—';
+        }
+        var maxV = m === 'cost' ? maxCost : maxLat;
+        var style = heatColor(val, maxV, m);
+        return '<td style="text-align:center;font-family:var(--mono);font-size:11px;'+style+'" title="'+cnt+' calls">'+display+'</td>';
+      }).join('');
+      return '<tr><td><span class="badge '+CTCLS[ci]+'">'+type+'</span></td>'+cells+'</tr>';
+    }).join('');
+
+    return '<table><thead><tr><th>Call type</th>'+colHeaders+'</tr></thead><tbody>'+rows+'</tbody></table>';
+  }
+
+  var wrap = document.getElementById('pane-heatmap');
+  wrap.innerHTML =
+    '<div style="margin-bottom:14px;display:flex;align-items:center;gap:10px">'+
+    '<span class="lbl" style="margin:0">Show</span>'+
+    '<button class="primary" id="hm-cost-btn" onclick="hmToggle(\'cost\')">Cost</button>'+
+    '<button id="hm-lat-btn" onclick="hmToggle(\'latency\')">Latency</button>'+
+    '<span style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-left:8px">cell = avg per call type + model &nbsp;|&nbsp; hover cell for call count</span>'+
+    '</div>'+
+    '<div class="tbl-wrap" id="hm-table">'+buildTable('cost')+'</div>';
+
+  window._hmBuildTable = buildTable;
+}
+
+function hmToggle(mode) {
+  document.getElementById('hm-table').innerHTML = window._hmBuildTable(mode);
+  document.getElementById('hm-cost-btn').className = mode==='cost' ? 'primary' : '';
+  document.getElementById('hm-lat-btn').className  = mode==='latency' ? 'primary' : '';
+}
+
+function go(tab) {
+  for (var i=0; i<TABS.length; i++) {
+    document.getElementById('pane-'+TABS[i]).style.display = TABS[i]===tab?'':'none';
+  }
+  var tabs = document.querySelectorAll('.tab');
+  for (var i=0; i<tabs.length; i++) tabs[i].classList.toggle('active', TABS[i]===tab);
+}
+
+function reset() {
+  data = []; ctMap = {};
+  document.getElementById('dot').className = 'dot';
+  document.getElementById('status').textContent = 'no data loaded';
+  document.getElementById('rcount').textContent = '';
+  document.getElementById('upload-section').style.display = '';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('paste').value = '';
+  document.getElementById('finput').value = '';
+}
+
+// ── File System Access API — Connect to Claude Logs ──────────────────────────
+var _IDB_NAME  = 'burnlog';
+var _IDB_STORE = 'handles';
+var _IDB_KEY   = 'claude-logs-dir';
+
+function _openDB(cb) {
+  var req = indexedDB.open(_IDB_NAME, 1);
+  req.onupgradeneeded = function(e) { e.target.result.createObjectStore(_IDB_STORE); };
+  req.onsuccess = function(e) { cb(null, e.target.result); };
+  req.onerror   = function(e) { cb(e, null); };
+}
+function _saveHandle(handle) {
+  _openDB(function(err, db) {
+    if (err) return;
+    db.transaction(_IDB_STORE, 'readwrite').objectStore(_IDB_STORE).put(handle, _IDB_KEY);
+  });
+}
+function _loadHandle(cb) {
+  _openDB(function(err, db) {
+    if (err) return cb(null);
+    var req = db.transaction(_IDB_STORE, 'readonly').objectStore(_IDB_STORE).get(_IDB_KEY);
+    req.onsuccess = function(e) { cb(e.target.result || null); };
+    req.onerror   = function()  { cb(null); };
+  });
+}
+
+async function _walkDir(dirHandle, files) {
+  for await (var entry of dirHandle.values()) {
+    if (entry.kind === 'directory') await _walkDir(entry, files);
+    else if (entry.kind === 'file' && entry.name.endsWith('.jsonl')) files.push(entry);
+  }
+}
+
+async function _loadFromHandle(handle) {
+  var fileEntries = [];
+  await _walkDir(handle, fileEntries);
+  if (!fileEntries.length) { alert('No .jsonl files found in the selected folder.'); return; }
+  var combined = [];
+  for (var i = 0; i < fileEntries.length; i++) {
+    var file = await fileEntries[i].getFile();
+    var text = await file.text();
+    var fmt = detectFormat(text);
+    var records = fmt === 'claude-code' ? parseClaudeCodeJSONL(text) : parseLines(text);
+    for (var j = 0; j < records.length; j++) combined.push(records[j]);
+  }
+  if (combined.length) processData(combined);
+  else alert('No valid records found in .jsonl files.');
+}
+
+async function connectLogs() {
+  if (!window.showDirectoryPicker) return;
+  try {
+    var handle = await window.showDirectoryPicker({ mode: 'read' });
+    _saveHandle(handle);
+    document.getElementById('reuse-btn').style.display = '';
+    await _loadFromHandle(handle);
+  } catch(e) {
+    if (e.name !== 'AbortError') console.error('connectLogs:', e);
+  }
+}
+
+async function reuseLogs() {
+  _loadHandle(async function(handle) {
+    if (!handle) return;
+    try {
+      var perm = await handle.queryPermission({ mode: 'read' });
+      if (perm !== 'granted') perm = await handle.requestPermission({ mode: 'read' });
+      if (perm === 'granted') await _loadFromHandle(handle);
+    } catch(e) {
+      console.error('reuseLogs:', e);
+    }
+  });
+}
+
+// Init: hide connect button on unsupported browsers; restore stored handle
+if (!window.showDirectoryPicker) {
+  document.getElementById('connect-btn').style.display = 'none';
+  document.getElementById('connect-tip').textContent = 'Folder connect not available in this browser — use drag & drop instead';
+} else {
+  _loadHandle(function(handle) {
+    if (handle) document.getElementById('reuse-btn').style.display = '';
+  });
+}
+</script>
+</body>
+</html>
