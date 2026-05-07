@@ -55,8 +55,3 @@ Cost is calculated from the Anthropic pricing table (opus-4 / sonnet-4 / haiku-4
 | claude-sonnet-4 | $3/M | $15/M | $0.30/M | $3.75/M |
 | claude-haiku-4 | $0.80/M | $4/M | $0.08/M | $1.00/M |
 
-## Roadmap
-
-- **Phase 2** — MCP timing breakdown, cost anomaly flagging, WSL2 diagnostics
-- **Phase 3** — Public deploy (Cloudflare Pages / Vercel), open source
-- **Phase 4** — User feedback loop, next feature direction
